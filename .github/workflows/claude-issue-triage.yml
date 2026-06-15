@@ -1,0 +1,73 @@
+name: Claude Code - Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read   # checkout
+      issues: write    # añadir/crear labels y comentar el diagnóstico
+      id-token: write  # auth OIDC de la action
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code - Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Limitar las herramientas a los comandos gh necesarios para el triaje.
+          claude_args: >-
+            --allowed-tools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*),Bash(gh api:*)"
+
+          prompt: |
+            Eres el asistente de triaje de issues de este repositorio (un juego
+            de Tetris en JavaScript: la lógica está en `game.js` y la UI en
+            `index.html` / `style.css`). El `gh` CLI ya está autenticado.
+
+            El issue a analizar es el número ${{ github.event.issue.number }}.
+
+            Realiza estos pasos en orden:
+
+            1. Lee el issue completo:
+               `gh issue view ${{ github.event.issue.number }} --json number,title,body,labels,comments`
+
+            2. Consulta los labels existentes con `gh label list`.
+               Decide qué labels son apropiados según el contenido del issue
+               (p. ej. tipo: `bug`, `enhancement`, `question`, `documentation`;
+               y si aplica, área o prioridad). Si un label claramente útil no
+               existe, créalo con `gh label create "<nombre>" --color <hex> --description "<desc>"`.
+               Luego aplícalos con:
+               `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"`.
+               No elimines labels existentes; solo añade los que falten.
+
+            3. Escribe un **diagnóstico general del problema** en el **mismo
+               idioma que usó el autor del issue**, con estas secciones en
+               Markdown:
+               - **Resumen**: qué pide o reporta el issue, en 1-2 frases.
+               - **Análisis / causa probable**: qué parte del código está
+                 implicada (nombra archivos y funciones de `game.js` cuando sea
+                 posible) y por qué podría ocurrir.
+               - **Pasos sugeridos para la solución**: lista accionable que
+                 sirva de base para implementar el fix después.
+               El comentario DEBE empezar con la línea exacta:
+               `<!-- claude-triage -->`
+
+            4. Antes de comentar, revisa los comentarios existentes del issue
+               (del paso 1). Si ya existe un comentario que empiece con
+               `<!-- claude-triage -->`, **actualízalo** en lugar de crear uno
+               nuevo, usando la API:
+               `gh api repos/${{ github.repository }}/issues/comments/<comment_id> -X PATCH -f body=@<archivo>`
+               (obtén el `<comment_id>` del JSON del paso 1).
+               Si no existe, crea uno nuevo con:
+               `gh issue comment ${{ github.event.issue.number }} --body-file <archivo>`.
+
+            Sé conciso y técnico. No implementes la solución en el código; tu
+            tarea es únicamente etiquetar y diagnosticar.
