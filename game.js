@@ -15,6 +15,66 @@ const COLORS = [
   '#ffb74d', // L - orange
 ];
 
+// ---- Visual skins ----
+// Each skin defines a color palette (index 1-7; index 0 = empty) plus a
+// `style` flag consumed by drawBlock() to vary the per-block rendering.
+const SKINS = {
+  retro: {
+    label: 'Retro',
+    style: 'flat',
+    grid: '#22222e',
+    colors: [
+      null,
+      '#4dd0e1', '#ffd54f', '#ba68c8', '#81c784',
+      '#e57373', '#7986cb', '#ffb74d',
+    ],
+  },
+  neon: {
+    label: 'Neon',
+    style: 'glow',
+    grid: '#101018',
+    colors: [
+      null,
+      '#00f0ff', '#fff200', '#ff00e6', '#00ff85',
+      '#ff2d55', '#5b6bff', '#ff9500',
+    ],
+  },
+  pastel: {
+    label: 'Pastel',
+    style: 'rounded',
+    grid: '#e3dcef',
+    colors: [
+      null,
+      '#a8e6e6', '#fdf0b0', '#d6b8e8', '#b8e6c0',
+      '#f4b8b8', '#b8c0ec', '#f7d4a8',
+    ],
+  },
+  pixel: {
+    label: 'Pixel-art',
+    style: 'pixel',
+    grid: '#1a140f',
+    colors: [
+      null,
+      '#3ab7c4', '#d9b53f', '#9a55b0', '#5fa869',
+      '#c45959', '#5f6bb0', '#d18f3f',
+    ],
+  },
+};
+
+const DEFAULT_SKIN = 'retro';
+const SKIN_STORAGE_KEY = 'tetris.skin';
+
+function loadSkinName() {
+  try {
+    const saved = localStorage.getItem(SKIN_STORAGE_KEY);
+    if (saved && Object.prototype.hasOwnProperty.call(SKINS, saved)) return saved;
+  } catch (e) { /* localStorage unavailable / blocked */ }
+  return DEFAULT_SKIN;
+}
+
+let skinName = loadSkinName();
+let activeSkin = SKINS[skinName];
+
 const PIECES = [
   null,
   [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], // I
@@ -39,6 +99,7 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const skinSelect = document.getElementById('skin-select');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
@@ -156,20 +217,100 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
+function roundRectPath(context, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.arcTo(x + w, y, x + w, y + h, r);
+  context.arcTo(x + w, y + h, x, y + h, r);
+  context.arcTo(x, y + h, x, y, r);
+  context.arcTo(x, y, x + w, y, r);
+  context.closePath();
+}
+
+function applySkin() {
+  document.body.dataset.skin = skinName;
+  if (skinSelect) skinSelect.value = skinName;
+  // Re-render immediately so the change is visible without a reload,
+  // even while paused or before the loop runs.
+  if (board) draw();
+  if (next) drawNext();
+}
+
+function setSkin(name) {
+  if (!Object.prototype.hasOwnProperty.call(SKINS, name)) return;
+  skinName = name;
+  activeSkin = SKINS[name];
+  try {
+    localStorage.setItem(SKIN_STORAGE_KEY, name);
+  } catch (e) { /* localStorage unavailable / blocked */ }
+  applySkin();
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
+  const color = activeSkin.colors[colorIndex] || COLORS[colorIndex];
+  const px = x * size + 1;
+  const py = y * size + 1;
+  const s = size - 2;
   context.globalAlpha = alpha ?? 1;
   context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+
+  switch (activeSkin.style) {
+    case 'glow':
+      // Neon: glowing blocks via canvas shadow.
+      context.shadowColor = color;
+      context.shadowBlur = 12;
+      context.fillRect(px, py, s, s);
+      context.shadowBlur = 0;
+      context.shadowColor = 'transparent';
+      // inner darker core for a tube-light feel
+      context.fillStyle = 'rgba(0,0,0,0.35)';
+      context.fillRect(px + s * 0.25, py + s * 0.25, s * 0.5, s * 0.5);
+      break;
+
+    case 'rounded':
+      // Pastel: simulated rounded corners + soft top highlight.
+      roundRectPath(context, px, py, s, s, Math.max(3, size * 0.22));
+      context.fill();
+      context.fillStyle = 'rgba(255,255,255,0.30)';
+      roundRectPath(context, px + 2, py + 2, s - 4, s * 0.35, Math.max(2, size * 0.16));
+      context.fill();
+      break;
+
+    case 'pixel': {
+      // Pixel-art: chunky pixel texture drawn over each block.
+      context.fillRect(px, py, s, s);
+      const cells = 4;
+      const cs = s / cells;
+      for (let r = 0; r < cells; r++) {
+        for (let c = 0; c < cells; c++) {
+          const shade = (r + c) % 2 === 0 ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.18)';
+          context.fillStyle = shade;
+          context.fillRect(px + c * cs, py + r * cs, Math.ceil(cs), Math.ceil(cs));
+        }
+      }
+      // dark border for a pixel-sprite look
+      context.strokeStyle = 'rgba(0,0,0,0.55)';
+      context.lineWidth = 1;
+      context.strokeRect(px + 0.5, py + 0.5, s - 1, s - 1);
+      break;
+    }
+
+    case 'flat':
+    default:
+      // Retro: flat fill + white highlight strip (original look).
+      context.fillRect(px, py, s, s);
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(px, py, s, 4);
+      break;
+  }
+
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = activeSkin.grid;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -301,4 +442,9 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+if (skinSelect) {
+  skinSelect.addEventListener('change', e => setSkin(e.target.value));
+}
+
+applySkin();
 init();
