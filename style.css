@@ -84,6 +84,79 @@ body {
   border-radius: 4px;
 }
 
+/* ---- Skin selector ---- */
+.skin-select {
+  background: #1a1a25;
+  color: #e0e0e0;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.skin-select:focus {
+  outline: none;
+  border-color: #7aa2f7;
+}
+
+/* ---- Per-skin page chrome ---- */
+/* Defaults match the Retro theme. */
+body {
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+body[data-skin="neon"] {
+  background: #050509;
+  color: #d8faff;
+}
+body[data-skin="neon"] #board,
+body[data-skin="neon"] #next-canvas {
+  background: #05050a;
+  border-color: #00f0ff;
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.35);
+}
+body[data-skin="neon"] .value { color: #00f0ff; }
+
+body[data-skin="pastel"] {
+  background: #f3eefa;
+  color: #5a5470;
+}
+body[data-skin="pastel"] #board,
+body[data-skin="pastel"] #next-canvas {
+  background: #fbf7ff;
+  border-color: #d6cbe8;
+  box-shadow: 0 0 30px rgba(180, 160, 210, 0.35);
+}
+body[data-skin="pastel"] .label { color: #9c90b8; }
+body[data-skin="pastel"] .value { color: #b07fd1; }
+body[data-skin="pastel"] .controls li { color: #8a82a0; }
+body[data-skin="pastel"] kbd {
+  background: #e8e0f4;
+  border-color: #d0c4e4;
+  color: #6a6080;
+}
+body[data-skin="pastel"] .skin-select {
+  background: #fbf7ff;
+  color: #5a5470;
+  border-color: #d6cbe8;
+}
+
+body[data-skin="pixel"] {
+  background: #1a140f;
+  color: #e8d8c0;
+}
+body[data-skin="pixel"] #board,
+body[data-skin="pixel"] #next-canvas {
+  background: #221a12;
+  border-color: #5a4632;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.6);
+}
+body[data-skin="pixel"] .value { color: #d9b53f; }
+
 /* ---- Controles ---- */
 .controls ul {
   list-style: none;
